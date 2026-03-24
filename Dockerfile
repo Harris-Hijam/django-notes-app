@@ -1,21 +1,29 @@
-FROM python:3.9
+# --- Stage 1: Builder ---
+FROM python:3.9 AS builder
+
+WORKDIR /app
+
+# Install dependencies into a local folder
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# --- Stage 2: Final Runtime ---
+FROM python:3.9-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/root/.local/bin:${PATH}"
 
 WORKDIR /app/backend
 
-COPY requirements.txt /app/backend
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y gcc default-libmysqlclient-dev pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+# Copy only the installed packages from the builder stage
+COPY --from=builder /root/.local /root/.local
 
-
-# Install app dependencies
-RUN pip install mysqlclient
-RUN pip install --no-cache-dir -r requirements.txt
-
+# Copy the rest of your application code
 COPY . /app/backend
 
 EXPOSE 8000
-CMD ["python3", "manage.py", "runserver", "0.0.0.0:8000"]
-#RUN python manage.py migrate
-#RUN python manage.py makemigrations
+
+# Using the list format for CMD is considered best practice
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
